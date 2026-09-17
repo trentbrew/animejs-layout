@@ -98,6 +98,17 @@ body {
 	overflow: hidden;
 }
 
+/*
+ * `overflow: hidden` clips the leave animation at rest, but it also clips the
+ * morph itself: anime.js animates the root's own height, so a card flying to a
+ * tall layout (stack, chaos, calendar) overshoots the still-short root and gets
+ * cut off. anime.js toggles `.is-animated` on the root for exactly the span of
+ * a transition, which is the right window to let content escape.
+ */
+#root.is-animated {
+	overflow: visible;
+}
+
 /* Bits UI owns the dialog element now: no native <dialog>/::backdrop,
    so the overlay state is read from `data-state`. */
 #overlay {
@@ -256,15 +267,20 @@ button.close-overlay:active {
 	visibility: visible;
 }
 
-.card-image {
+/* The visual region is shared by every entity class; `data-visual` picks the
+   projection. Its id/class names are part of the anime.js twin contract. */
+.card-visual {
 	position: relative;
 	display: flex;
+	flex-direction: column;
 	align-items: center;
 	justify-content: center;
+	gap: 0.25rem;
 	aspect-ratio: 16 / 12;
+	overflow: hidden;
 }
 
-.card-image-grid {
+.card-visual-grid {
 	--grid-size: 2rem;
 	position: absolute;
 	top: 0;
@@ -277,25 +293,157 @@ button.close-overlay:active {
 	background-position: center;
 }
 
-.card-image svg {
+.card-visual svg {
 	position: absolute;
 	width: 100%;
 	height: 100%;
 }
 
-.card-image circle {
+.card-visual circle {
 	vector-effect: non-scaling-stroke;
 	stroke-width: 1px;
 }
 
-.card-image .planet circle {
+.card-visual .planet circle {
 	fill: color-mix(in oklab, var(--card-color) 65%, var(--color-3));
 	stroke: var(--card-color);
 }
 
-.card-image .rings circle {
+.card-visual .rings circle {
 	fill: transparent;
 	stroke: var(--card-color);
+}
+
+/* ── temporal: date badge ── */
+.visual-date {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	line-height: 1;
+	padding: 0.5rem 0.75rem;
+	border-radius: calc(var(--radius) - 2px);
+	background: color-mix(in oklab, var(--card-color) 18%, transparent);
+	border: 1px solid color-mix(in oklab, var(--card-color) 45%, transparent);
+}
+
+.visual-date-month {
+	font-size: 0.6875rem;
+	font-weight: 700;
+	letter-spacing: 0.08em;
+	color: var(--card-color);
+}
+
+.visual-date-day {
+	font-size: 2.25rem;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	color: var(--color-1);
+}
+
+.visual-meta {
+	position: relative;
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+}
+
+.visual-time {
+	font-size: 0.75rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--color-1);
+	opacity: 0.8;
+}
+
+.visual-tone {
+	font-size: 0.5625rem;
+	font-weight: 700;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	padding: 0 0.25rem;
+	border-radius: 0.125rem;
+	background: var(--card-color);
+	color: var(--color-5);
+}
+
+/* ── actor: avatar / monogram ── */
+.visual-monogram {
+	position: relative;
+	display: grid;
+	place-items: center;
+	width: 4.5rem;
+	height: 4.5rem;
+	border-radius: 50%;
+	background: color-mix(in oklab, var(--card-color) 22%, transparent);
+	border: 1px solid color-mix(in oklab, var(--card-color) 55%, transparent);
+	font-size: 1.5rem;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--color-1);
+}
+
+.visual-avatar {
+	position: relative;
+	width: 4.5rem;
+	height: 4.5rem;
+	border-radius: 50%;
+	object-fit: cover;
+}
+
+/* ── container: progress ── */
+.visual-progress {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 0.375rem;
+	width: 70%;
+}
+
+.visual-progress-track {
+	display: block;
+	height: 0.5rem;
+	border-radius: 999px;
+	background: color-mix(in oklab, var(--color-1) 15%, transparent);
+	overflow: hidden;
+}
+
+.visual-progress-fill {
+	display: block;
+	width: calc(var(--progress, 0) * 100%);
+	height: 100%;
+	border-radius: inherit;
+	background: var(--card-color);
+}
+
+.visual-progress-label {
+	font-size: 0.6875rem;
+	font-variant-numeric: tabular-nums;
+	letter-spacing: 0.06em;
+	color: var(--color-1);
+	opacity: 0.75;
+}
+
+/* ── document: excerpt ── */
+.visual-excerpt {
+	position: relative;
+	font-size: 0.75rem;
+	line-height: 1.4;
+	text-align: center;
+	color: var(--color-1);
+	opacity: 0.85;
+	padding: 0 0.75rem;
+	display: -webkit-box;
+	-webkit-line-clamp: 5;
+	-webkit-box-orient: vertical;
+	overflow: hidden;
+}
+
+.visual-pin {
+	position: absolute;
+	top: 0.5rem;
+	right: 0.5rem;
+	font-size: 0.625rem;
+	color: var(--card-color);
 }
 
 .card-text {
@@ -360,7 +508,7 @@ button.close-overlay:active {
 	padding: calc(var(--padding) * 2);
 }
 
-#overlay .card-image {
+#overlay .card-visual {
 	aspect-ratio: 2 / 1;
 }
 
@@ -386,10 +534,23 @@ button.close-overlay:active {
 	flex-grow: 1;
 }
 
-#root[data-layout='list'] .card-image {
+#root[data-layout='list'] .card-visual {
 	width: 6rem;
 	height: 6rem;
 	margin: 0rem;
+}
+
+/* The list row is 6rem tall, so the badge has to give the meta row room. */
+#root[data-layout='list'] .visual-date {
+	padding: 0.25rem 0.5rem;
+}
+
+#root[data-layout='list'] .visual-date-day {
+	font-size: 1.5rem;
+}
+
+#root[data-layout='list'] .visual-time {
+	font-size: 0.625rem;
 }
 
 #root[data-layout='list'] .card-type {
@@ -457,7 +618,7 @@ button.close-overlay:active {
 	transform: translateY(-1rem);
 }
 
-#root[data-layout='stripes'] .card-image {
+#root[data-layout='stripes'] .card-visual {
 	width: 100%;
 	height: 100%;
 }
@@ -471,6 +632,120 @@ button.close-overlay:active {
 #root[data-layout='stripes'] .card-intro-description,
 #root[data-layout='stripes'] .card-type {
 	display: none;
+}
+
+/*
+ * Calendar. Day chrome and cards are siblings in the same grid, so anime.js
+ * only ever animates geometry — which is what makes list ⇄ calendar ⇄ dialog
+ * the same morph as every other layout.
+ */
+#root[data-layout='calendar'] {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
+	grid-template-rows: auto auto repeat(6, minmax(0, 1fr));
+	gap: 1px;
+	align-items: stretch;
+	justify-content: stretch;
+	height: 100lvh;
+}
+
+.calendar-label {
+	grid-row: 1;
+	grid-column: 1 / -1;
+	padding-bottom: 0.25rem;
+	font-size: 0.8125rem;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+	color: var(--color-1);
+}
+
+.calendar-weekday {
+	grid-row: 2;
+	grid-column: var(--col);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding-bottom: 0.375rem;
+	font-size: 0.625rem;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--muted-foreground);
+}
+
+.calendar-day {
+	grid-row: var(--row);
+	grid-column: var(--col);
+	position: relative;
+	border-radius: 0.25rem;
+	background: color-mix(in oklab, var(--color-1) 4%, transparent);
+	overflow: hidden;
+}
+
+.calendar-day.is-outside {
+	opacity: 0.45;
+}
+
+.calendar-day.is-today {
+	background: color-mix(in oklab, var(--primary) 14%, transparent);
+}
+
+.calendar-day-number {
+	position: absolute;
+	top: 0.25rem;
+	left: 0.375rem;
+	font-size: 0.625rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--muted-foreground);
+}
+
+/* A calendar entry is a chip: no visual region, no copy, just a title. */
+#root[data-layout='calendar'] .card {
+	flex-direction: row;
+	align-items: center;
+	align-self: start;
+	grid-row: var(--row);
+	grid-column: var(--col);
+	height: 1.375rem;
+	padding: 0 0.375rem;
+	margin-top: calc(1.125rem + var(--slot, 0) * 1.5rem);
+	border-radius: 0.25rem;
+	background-color: color-mix(in oklab, var(--card-color) 32%, var(--color-5));
+	border-color: color-mix(in oklab, var(--card-color) 50%, transparent);
+	font-size: 0.6875rem;
+}
+
+#root[data-layout='calendar'] .card:hover {
+	transform: none;
+	border-color: var(--card-color);
+}
+
+#root[data-layout='calendar'] .card-visual,
+#root[data-layout='calendar'] .card-type,
+#root[data-layout='calendar'] .card-info {
+	display: none;
+}
+
+#root[data-layout='calendar'] .card-text {
+	flex-direction: row;
+	align-items: center;
+	width: 100%;
+	padding: 0;
+}
+
+#root[data-layout='calendar'] .card-title {
+	width: auto;
+	margin: 0;
+	font-size: 0.6875rem;
+	font-weight: 500;
+	text-align: left;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+#root[data-layout='calendar'] .card:hover .card-title {
+	color: var(--color-1);
 }
 
 /* Per-card accent, driven by the planet's `data-color` slot. */
@@ -537,6 +812,13 @@ button.close-overlay:active {
 
 .theme-select-trigger:hover {
 	background-color: var(--bg-5);
+}
+
+.class-select-trigger {
+	min-width: 7.5rem;
+	justify-content: space-between;
+	text-transform: lowercase;
+	font-weight: 600;
 }
 
 .theme-select-content {
