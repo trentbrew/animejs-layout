@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { Select, Toggle, ToggleGroup } from 'bits-ui';
+	import Icon from './Icon.svelte';
 	import { ENTITY_CLASSES, type EntityClass, type Layout } from './entities';
 	import { THEMES } from './themes';
 
@@ -7,6 +8,8 @@
 		layout: Layout;
 		theme: string;
 		dark: boolean;
+		volume: number;
+		muted: boolean;
 		visibleCount: number;
 		entityCount: number;
 		entityClass: EntityClass;
@@ -14,14 +17,19 @@
 		onLayoutChange: (layout: Layout) => void;
 		onAction: (action: 'add' | 'remove' | 'shuffle') => void;
 		onClassChange: (entityClass: EntityClass) => void;
+		onCreate: () => void;
 		onThemeChange: (theme: string) => void;
 		onDarkChange: (dark: boolean) => void;
+		onVolumeChange: (volume: number) => void;
+		onMuteToggle: () => void;
 	}
 
 	let {
 		layout,
 		theme,
 		dark,
+		volume,
+		muted,
 		visibleCount,
 		entityCount,
 		entityClass,
@@ -29,8 +37,11 @@
 		onLayoutChange,
 		onAction,
 		onClassChange,
+		onCreate,
 		onThemeChange,
-		onDarkChange
+		onDarkChange,
+		onVolumeChange,
+		onMuteToggle
 	}: Props = $props();
 
 	const themeLabel = $derived(THEMES.find((entry) => entry.id === theme)?.label ?? theme);
@@ -47,7 +58,12 @@
 			onValueChange={(value) => value && onClassChange(value as EntityClass)}
 			items={ENTITY_CLASSES.map((value) => ({ value, label: value }))}
 		>
-			<Select.Trigger class="theme-select-trigger class-select-trigger" aria-label="Entity class">
+			<Select.Trigger
+				class="theme-select-trigger class-select-trigger"
+				aria-label="Entity class"
+				data-foley-click="tick"
+				data-hover-cue
+			>
 				{entityClass}
 				<span aria-hidden="true">▾</span>
 			</Select.Trigger>
@@ -75,7 +91,9 @@
 		{#each availableLayouts as option (option)}
 			<ToggleGroup.Item value={option} class="toggle">
 				{#snippet child({ props })}
-					<button {...props}>{option}</button>
+					<button {...props} aria-label={option} data-hover-cue>
+						<Icon key={`layout.${option}`} />
+					</button>
 				{/snippet}
 			</ToggleGroup.Item>
 		{/each}
@@ -85,17 +103,40 @@
 		<div class="controls-group actions">
 			<button
 				type="button"
+				class="action is-primary"
+				data-foley-click="pop"
+				data-hover-cue
+				onclick={onCreate}
+			>
+				<Icon key="action.add" />
+				<span>new</span>
+			</button>
+			<button
+				type="button"
 				class="action"
+				aria-label="Add"
+				data-foley-click="pop"
+				data-hover-cue
 				disabled={visibleCount >= entityCount}
-				onclick={() => onAction('add')}>add</button
+				onclick={() => onAction('add')}><Icon key="action.add" /></button
 			>
 			<button
 				type="button"
 				class="action"
+				aria-label="Remove"
+				data-foley-click="off"
+				data-hover-cue
 				disabled={visibleCount <= 1}
-				onclick={() => onAction('remove')}>remove</button
+				onclick={() => onAction('remove')}><Icon key="action.remove" /></button
 			>
-			<button type="button" class="action" onclick={() => onAction('shuffle')}>shuffle</button>
+			<button
+				type="button"
+				class="action"
+				aria-label="Shuffle"
+				data-foley-click="swoosh"
+				data-hover-cue
+				onclick={() => onAction('shuffle')}><Icon key="action.shuffle" /></button
+			>
 		</div>
 	{/if}
 
@@ -106,7 +147,12 @@
 			onValueChange={(value) => value && onThemeChange(value)}
 			items={THEMES.map((entry) => ({ value: entry.id, label: entry.label }))}
 		>
-			<Select.Trigger class="theme-select-trigger" aria-label="tweakcn theme">
+			<Select.Trigger
+				class="theme-select-trigger"
+				aria-label="tweakcn theme"
+				data-foley-click="tick"
+				data-hover-cue
+			>
 				{themeLabel}
 				<span aria-hidden="true">▾</span>
 			</Select.Trigger>
@@ -128,8 +174,31 @@
 			onPressedChange={onDarkChange}
 			class="mode"
 			aria-label="Dark mode"
+			data-foley-click="switch"
+			data-hover-cue
 		>
-			{dark ? 'dark' : 'light'}
+			<Icon key={dark ? 'mode.dark' : 'mode.light'} />
 		</Toggle.Root>
+
+		<Toggle.Root
+			pressed={!muted}
+			onPressedChange={() => onMuteToggle()}
+			class="mode"
+			aria-label={muted ? 'Unmute' : 'Mute'}
+			data-hover-cue
+		>
+			<Icon key={muted ? 'sound.off' : 'sound.on'} />
+		</Toggle.Root>
+
+		<input
+			class="volume"
+			type="range"
+			min="0"
+			max="1"
+			step="0.01"
+			value={volume}
+			aria-label="Sound volume"
+			oninput={(event) => onVolumeChange(Number(event.currentTarget.value))}
+		/>
 	</div>
 </div>

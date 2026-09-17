@@ -1,0 +1,58 @@
+[
+	{
+		"id": "modern-minimal",
+		"label": "Modern Minimal",
+		"motion": "crisp",
+		"sound": "neutral",
+		"icon": "lucide"
+	},
+	{
+		"id": "vercel",
+		"label": "Vercel",
+		"motion": "crisp",
+		"sound": "neutral",
+		"icon": "lucide"
+	},
+	{
+		"id": "claude",
+		"label": "Claude",
+		"motion": "soft",
+		"sound": "warm",
+		"icon": "ph"
+	},
+	{
+		"id": "catppuccin",
+		"label": "Catppuccin",
+		"motion": "soft",
+		"sound": "soft",
+		"icon": "ph"
+	},
+	{
+		"id": "quantum-rose",
+		"label": "Quantum Rose",
+		"motion": "springy",
+		"sound": "bright",
+		"icon": "material-symbols"
+	},
+	{
+		"id": "cosmic-night",
+		"label": "Cosmic Night",
+		"motion": "springy",
+		"sound": "deep",
+		"icon": "material-symbols"
+	},
+	{
+		"id": "amethyst-haze",
+		"label": "Amethyst Haze",
+		"motion": "soft",
+		"sound": "soft",
+		"icon": "ph"
+	},
+	{
+		"id": "t3-chat",
+		"label": "T3 Chat",
+		"motion": "crisp",
+		"sound": "neutral",
+		"icon": "lucide"
+	}
+]

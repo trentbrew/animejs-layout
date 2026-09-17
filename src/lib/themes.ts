@@ -1,18 +1,22 @@
+import themes from './themes.json';
+
+/**
+ * The theme contract. Colors / fonts / radius come from `themes.css`
+ * (generated from tweakcn); `motion`, `sound`, and `icon` are preset
+ * references resolved in `theme-manifest.ts` and `icons.ts`.
+ */
 export type Theme = {
 	id: string;
 	label: string;
+	/** Motion preset id — see `MOTION` in `theme-manifest.ts`. */
+	motion: string;
+	/** Sound preset id — see `SOUND` in `theme-manifest.ts`. */
+	sound: string;
+	/** Iconify icon-set prefix — see `icons.ts`. */
+	icon: string;
 };
 
-/** Kept in sync with `scripts/gen-themes.mjs`. */
-export const THEMES: Theme[] = [
-	{ id: 'modern-minimal', label: 'Modern Minimal' },
-	{ id: 'vercel', label: 'Vercel' },
-	{ id: 'claude', label: 'Claude' },
-	{ id: 'catppuccin', label: 'Catppuccin' },
-	{ id: 'quantum-rose', label: 'Quantum Rose' },
-	{ id: 'cosmic-night', label: 'Cosmic Night' },
-	{ id: 'amethyst-haze', label: 'Amethyst Haze' },
-	{ id: 't3-chat', label: 'T3 Chat' }
-];
+/** Single source: also read by `scripts/gen-themes.mjs`. */
+export const THEMES: Theme[] = themes;
 
 export const DEFAULT_THEME = 'modern-minimal';

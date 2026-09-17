@@ -8,6 +8,14 @@
  * can be swapped for a real graph node without touching the view layer.
  */
 
+import {
+	optionLabel,
+	optionTone,
+	schemaFor,
+	summaryField,
+	type FieldDescriptor
+} from './schema';
+
 export type EntityClass = 'temporal' | 'document' | 'actor' | 'container' | 'demo';
 
 export type Priority = 'critical' | 'high' | 'medium' | 'low';
@@ -87,9 +95,14 @@ export type Visual =
 	| { kind: 'orb'; radius: number; rings: number[] }
 	| { kind: 'date'; month: string; day: string; time?: string; tone?: string }
 	| { kind: 'excerpt'; text: string; pinned: boolean }
-	| { kind: 'avatar'; initials: string; image?: string }
+	| { kind: 'monogram'; initials: string; image?: string }
 	| { kind: 'progress'; value: number; status: string };
 
+/**
+ * The card's read model. Every slot is sourced from the schema's `summary`
+ * markers rather than a per-class branch, so adding a field to `schema.ts` can
+ * surface on the card without touching this file.
+ */
 export type Projection = {
 	/** Accent slot 0..10, resolved against the active theme in `app.css`. */
 	color: number;
@@ -98,8 +111,6 @@ export type Projection = {
 	subtitle: string;
 	/** One-line summary shown on grid/list cards. */
 	meta: string;
-	/** Field list shown in the dialog. */
-	facts: string[];
 	visual: Visual;
 };
 
@@ -111,20 +122,10 @@ export const parseDay = (iso: string) => {
 	return { year, month, day };
 };
 
-const titleCase = (value: string) =>
-	value.replace(/[_-]/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
-
 const hash = (value: string) => {
 	let acc = 0;
 	for (let i = 0; i < value.length; i++) acc = (acc * 31 + value.charCodeAt(i)) | 0;
 	return Math.abs(acc);
-};
-
-const PRIORITY_COLOR: Record<Priority, number> = {
-	critical: 6,
-	high: 1,
-	medium: 2,
-	low: 3
 };
 
 const initials = (name: string) =>
@@ -134,60 +135,70 @@ const initials = (name: string) =>
 		.map((part) => part[0]?.toUpperCase() ?? '')
 		.join('');
 
+const asString = (value: unknown) => (value == null ? '' : String(value));
+
 export function projection(entity: Entity): Projection {
+	const schema = schemaFor(entity.class);
+	const record = entity as Record<string, unknown>;
+
+	const read = (slot: NonNullable<FieldDescriptor['summary']>) => {
+		const field = summaryField(schema, slot);
+		return field ? { field, value: record[field.name] } : null;
+	};
+
+	const title = asString(record.title) || 'Untitled';
+	const chip = read('chip');
+	const metaField = read('meta');
+	const accent = read('accent');
+	const visualField = read('visual');
+
 	const color =
-		entity.view?.color ?? (entity.priority ? PRIORITY_COLOR[entity.priority] : hash(entity.id) % 11);
+		optionTone(accent?.field, accent?.value) ?? entity.view?.color ?? hash(entity.id) % 11;
 
-	const facts: string[] = [];
-	if (entity.startDate) {
-		facts.push(
-			entity.endDate && entity.endDate !== entity.startDate
-				? `${entity.startDate} → ${entity.endDate}`
-				: entity.startDate
-		);
-	}
-	if (entity.startTime) {
-		facts.push(entity.endTime ? `${entity.startTime} – ${entity.endTime}` : entity.startTime);
-	}
-	if (entity.priority) facts.push(`Priority: ${entity.priority}`);
-	if (entity.taskStatus) facts.push(`Status: ${entity.taskStatus.replace('-', ' ')}`);
-	if (entity.status) facts.push(`Status: ${entity.status}`);
-	if (entity.role) facts.push(`Role: ${entity.role}`);
-	if (entity.email) facts.push(entity.email);
-	if (entity.phone) facts.push(entity.phone);
-	if (typeof entity.progress === 'number') facts.push(`Progress: ${Math.round(entity.progress * 100)}%`);
-	if (entity.url) facts.push(entity.url);
-	if (entity.tags.length) facts.push(`Tags: ${entity.tags.join(', ')}`);
-	facts.push(`Created ${entity.createdAt.slice(0, 10)}`);
-
-	const subtitle = titleCase(entity.category ?? entity.type);
-	const meta = entity.description ?? entity.excerpt ?? '';
-
-	let visual: Visual;
-	if (entity.view?.orb) {
-		visual = { kind: 'orb', ...entity.view.orb };
-	} else if (entity.startDate) {
-		const { month, day } = parseDay(entity.startDate);
-		visual = {
-			kind: 'date',
-			month: MONTHS[month - 1],
-			day: String(day).padStart(2, '0'),
-			time: entity.allDay ? undefined : entity.startTime,
-			tone: entity.priority
-		};
-	} else if (entity.class === 'actor') {
-		visual = { kind: 'avatar', initials: initials(entity.title), image: entity.avatar };
-	} else if (entity.class === 'container') {
-		visual = { kind: 'progress', value: entity.progress ?? 0, status: entity.status ?? 'active' };
-	} else {
-		visual = {
-			kind: 'excerpt',
-			text: (entity.excerpt ?? entity.content ?? entity.description ?? '').slice(0, 140),
-			pinned: Boolean(entity.pinned)
-		};
+	let visual: Visual = { kind: 'excerpt', text: '', pinned: false };
+	if (visualField) {
+		switch (visualField.field.valueType) {
+			case 'orb':
+				visual = { kind: 'orb', ...(entity.view?.orb ?? { radius: 90, rings: [] }) };
+				break;
+			case 'date': {
+				const iso = asString(visualField.value);
+				const { month, day } = parseDay(iso);
+				visual = {
+					kind: 'date',
+					month: MONTHS[month - 1] ?? '',
+					day: String(day).padStart(2, '0'),
+					time: entity.allDay ? undefined : asString(record.startTime) || undefined,
+					tone: optionLabel(accent?.field, accent?.value) || undefined
+				};
+				break;
+			}
+			case 'title':
+				visual = { kind: 'monogram', initials: initials(title), image: asString(record.avatar) || undefined };
+				break;
+			case 'progress':
+				visual = {
+					kind: 'progress',
+					value: Number(visualField.value ?? 0),
+					status: asString(record.status) || 'active'
+				};
+				break;
+			default:
+				visual = {
+					kind: 'excerpt',
+					text: asString(visualField.value).slice(0, 140),
+					pinned: Boolean(record.pinned)
+				};
+		}
 	}
 
-	return { color, title: entity.title, subtitle, meta, facts, visual };
+	return {
+		color,
+		title,
+		subtitle: optionLabel(chip?.field, chip?.value) || asString(record.type),
+		meta: asString(metaField?.value),
+		visual
+	};
 }
 
 /* ── fixtures ────────────────────────────────────────────────────────────── */

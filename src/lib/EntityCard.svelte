@@ -1,6 +1,11 @@
 <script lang="ts">
+	import { onDestroy, untrack } from 'svelte';
 	import { longDate } from './calendar';
+	import Icon from './Icon.svelte';
 	import { projection, type Entity } from './entities';
+	import EntityFields from './EntityFields.svelte';
+	import { createEntityDraft } from './entityDraft.svelte';
+	import { schemaFor, type DialogMode } from './schema';
 
 	/** Grid placement used only by the `calendar` layout. */
 	export type Placement = { col: number; row: number; slot: number };
@@ -14,6 +19,8 @@
 		/** Rendered inside the dialog: enables the close button and the extra copy. */
 		overlay?: boolean;
 		placement?: Placement | null;
+		/** Dialog opens in this mode; `create` flows start in `edit`. */
+		startMode?: DialogMode;
 		onselect?: (entity: Entity) => void;
 		onclose?: () => void;
 	}
@@ -26,11 +33,30 @@
 		open = false,
 		overlay = false,
 		placement = null,
+		startMode = 'view',
 		onselect,
 		onclose
 	}: Props = $props();
 
 	const view = $derived(projection(entity));
+
+	/*
+	 * One draft per dialog render, shared by the title (edited in place below)
+	 * and the field list. The overlay unmounts when the selection clears, so a
+	 * reopened dialog starts in `read` with a clean draft.
+	 */
+	// `startMode` is read once, at mount, and never tracked — later changes to it
+	// must not re-mode a dialog the user is already using.
+	const draft = createEntityDraft(() => entity, { mode: untrack(() => startMode) });
+	const titleField = $derived(schemaFor(entity.class).find((field) => field.valueType === 'title'));
+
+	/*
+	 * Cleanup is tied to unmount, not to an `$effect`. The overlay render is
+	 * unmounted between selections, so a reopened dialog already gets a fresh
+	 * draft — and an effect here would re-run on every `entity` prop identity
+	 * change (i.e. after every write) and cancel the pending flush.
+	 */
+	onDestroy(() => draft.destroy());
 
 	/*
 	 * `--col` / `--row` / `--slot` are placement, not motion: anime.js mutes
@@ -76,6 +102,7 @@
 	data-visual={view.visual.kind}
 	data-layout-id={id}
 	aria-label={ariaLabel}
+	data-hover-cue
 	style="--index: {index}; --total: {total}{placementStyle}"
 	onclick={(event) => {
 		event.preventDefault();
@@ -89,11 +116,12 @@
 		disabled={!overlay}
 		tabindex={overlay ? 0 : -1}
 		aria-hidden={!overlay}
+		data-foley-click="whoosh"
 		onclick={(event) => {
 			event.preventDefault();
 			event.stopPropagation();
 			onclose?.();
-		}}>×</button
+		}}><Icon key="action.close" /></button
 	>
 
 	<div class="card-visual" data-layout-id="{id}-visual">
@@ -125,7 +153,7 @@
 					{/if}
 				</span>
 			{/if}
-		{:else if view.visual.kind === 'avatar'}
+		{:else if view.visual.kind === 'monogram'}
 			{#if view.visual.image}
 				<img class="visual-avatar" src={view.visual.image} alt="" />
 			{:else}
@@ -147,17 +175,26 @@
 	</div>
 
 	<div class="card-text" data-layout-id="{id}-text">
-		<h2 class="card-title" data-layout-id="{id}-title">{view.title}</h2>
+		{#if overlay && draft.mode === 'edit'}
+			<input
+				class="card-title card-title-input"
+				data-layout-id="{id}-title"
+				aria-label={titleField?.label ?? 'Title'}
+				placeholder={titleField?.placeholder ?? 'Untitled'}
+				value={view.title === 'Untitled' ? '' : view.title}
+				data-foley-type="thock"
+				oninput={(event) => draft.update('title', event.currentTarget.value)}
+			/>
+		{:else}
+			<h2 class="card-title" data-layout-id="{id}-title">{view.title}</h2>
+		{/if}
 		<p class="card-type" data-layout-id="{id}-type">{view.subtitle}</p>
 		<div class="card-info" data-layout-id="{id}-info">
 			<span class="card-intro-description" data-layout-id="{id}-intro">{view.meta}</span>
 			<span class="card-more-info" data-layout-id="{id}-more">
-				<span class="card-body">{entity.description}</span>
-				<ul data-layout-id="{id}-facts">
-					{#each view.facts as fact}
-						<li>{fact}</li>
-					{/each}
-				</ul>
+				{#if overlay}
+					<EntityFields {entity} {draft} />
+				{/if}
 			</span>
 		</div>
 	</div>

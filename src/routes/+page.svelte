@@ -2,6 +2,7 @@
 	import { flushSync, tick } from 'svelte';
 	import { createLayout, stagger, utils } from 'animejs';
 	import { Dialog } from 'bits-ui';
+	import { play } from '@foleyjs/core';
 	import EntityCard, { type Placement } from '$lib/EntityCard.svelte';
 	import { buildMonth, WEEKDAYS } from '$lib/calendar';
 	import EntityControls from '$lib/EntityControls.svelte';
@@ -14,22 +15,25 @@
 		type EntityClass,
 		type Layout
 	} from '$lib/entities';
-	import { DEFAULT_THEME } from '$lib/themes';
+	import { store } from '$lib/entityStore.svelte';
+	import { prefs, setPref } from '$lib/prefs.svelte';
+	import { motionDuration, motionFor } from '$lib/theme-manifest';
+	import { createHoverCue } from '$lib/hoverCue';
+	import { playStretched } from '$lib/sound';
 
 	let layout = $state<Layout>('grid');
-	let theme = $state(DEFAULT_THEME);
-	let dark = $state(true);
 
 	/** One entity class at a time, so ids stay unique and layouts stay simple. */
 	let entityClass = $state<EntityClass>('demo');
 
-	const entities = $derived(ENTITIES[entityClass]);
+	/** Read model: seed + op-log, so a write in the dialog shows up on the card. */
+	const entities = $derived(store.list(entityClass));
 	const availableLayouts = $derived(layoutsFor(entities));
 
 	/** Indices into `entities`, in display order. Every entity stays mounted; the
 	 * tail beyond `visibleCount` is hidden with `.is-removed` so anime.js can
 	 * animate it in and out instead of it simply vanishing from the DOM. */
-	let order = $state(ENTITIES.demo.map((_, index) => index));
+	let order = $state(store.list('demo').map((_, index) => index));
 	let visibleCount = $state(INITIAL_VISIBLE);
 
 	/** Which entity the dialog is showing, and which grid card is currently hidden. */
@@ -37,6 +41,8 @@
 	let openIds = $state<string[]>([]);
 	let dialogOpen = $state(false);
 	let opening = false;
+	/** Set when the dialog is opening on a just-created entity. */
+	let openingInWrite = $state(false);
 
 	let rootEl = $state<HTMLDivElement | null>(null);
 	let overlayEl = $state<HTMLDivElement | null>(null);
@@ -103,15 +109,30 @@
 		}))
 	]);
 
-	/** Layout animation is the point of the demo, so honour reduced motion by
-	 * collapsing durations rather than skipping the state change. */
-	const motion = (duration: number) =>
-		window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : duration;
+	/**
+	 * The active theme's motion preset — ease and tempo both ride with it.
+	 * `motionDuration` collapses durations to zero under reduced motion rather
+	 * than skipping the state change; the cascade window drives the sibling
+	 * stagger, so a crisp theme moves together and a soft one fans out.
+	 */
+	const motionPreset = $derived(motionFor(prefs.theme));
+	const cascade = $derived(motionPreset.stagger ? stagger([0, motionPreset.stagger]) : 0);
 
-	$effect(() => {
-		document.documentElement.dataset.theme = theme;
-		document.documentElement.classList.toggle('dark', dark);
+	/**
+	 * The dialog's motion. Same ease and tempo as a view switch, but no cascade:
+	 * the card and its parts FLIP as one rigid body, so a sibling stagger would
+	 * let the title lag its own frame and read as detached. Read at call time
+	 * rather than derived — `motionDuration` consults the document, which Svelte
+	 * can't track, so caching it would pin the first theme's tempo.
+	 */
+	const dialogMotion = () => ({
+		duration: motionDuration(500),
+		ease: motionPreset.ease,
+		delay: 0
 	});
+
+	/** One hover cue per entry, over anything marked `data-hover-cue`. */
+	const hoverCue = createHoverCue();
 
 	/*
 	 * Both layouts are created once, against a stable root element, and then
@@ -161,7 +182,7 @@
 				'.close-overlay'
 			],
 			properties: ['--overlay-alpha'],
-			duration: motion(500)
+			duration: motionDuration(500)
 		});
 		modalLayout = instance;
 		return () => {
@@ -208,6 +229,10 @@
 
 	function changeLayout(next: Layout) {
 		if (!cardsLayout || next === layout) return;
+		const duration = motionDuration(450);
+		// The sparkle lasts about as long as the transition it accompanies, so a
+		// slower theme stretches both together.
+		playStretched('sparkle', duration);
 		layout = next;
 		cardsLayout.update(
 			() => {
@@ -216,7 +241,11 @@
 				flushSync(() => {});
 				applyTransforms(next, visibleCardEls());
 			},
-			{ duration: motion(450), ease: 'inOut(3)', delay: stagger([0, 350]) }
+			{
+				duration,
+				ease: motionPreset.ease,
+				delay: cascade
+			}
 		);
 	}
 
@@ -231,8 +260,32 @@
 				});
 				applyTransforms(layout, visibleCardEls());
 			},
-			{ duration: motion(350), ease: 'out(3)', delay: 0 }
+			{ duration: motionDuration(350), ease: motionPreset.ease, delay: 0 }
 		);
+	}
+
+	/**
+	 * Create → the entity lands at the head of the class list, the visible slice
+	 * grows by one, and the existing `enterFrom` plays it in. The dialog opens on
+	 * the new entity once that animation settles, so the modal's "from" frame is
+	 * measured against a card at rest rather than one mid-flight.
+	 */
+	function createEntity() {
+		if (!cardsLayout) return;
+		const created = store.create(entityClass);
+		openingInWrite = true;
+		cardsLayout
+			.update(
+				() => {
+					flushSync(() => {
+						order = [0, ...order.map((index) => index + 1)];
+						visibleCount = Math.min(visibleCount + 1, store.list(entityClass).length);
+					});
+					applyTransforms(layout, visibleCardEls());
+				},
+				{ duration: motionDuration(350), ease: motionPreset.ease, delay: 0 }
+			)
+			.then(() => openCard(created));
 	}
 
 	/**
@@ -250,14 +303,18 @@
 					flushSync(() => {
 						leaving = outgoing;
 						entityClass = next;
-						const list = ENTITIES[next];
+						const list = store.list(next);
 						order = list.map((_, index) => index);
 						visibleCount = Math.min(INITIAL_VISIBLE, list.length);
 						if (!layoutsFor(list).includes(layout)) layout = 'grid';
 					});
 					applyTransforms(layout, visibleCardEls());
 				},
-				{ duration: motion(400), ease: 'inOut(3)', delay: stagger([0, 250]) }
+				{
+					duration: motionDuration(400),
+					ease: motionPreset.ease,
+					delay: cascade
+				}
 			)
 			.then(() => {
 				// A newer switch owns `leaving` now; let it finish its own cleanup.
@@ -265,7 +322,8 @@
 			});
 	}
 
-	function shuffleVisible(current: number[], count: number) {		const shuffled = current.slice(0, count);
+	function shuffleVisible(current: number[], count: number) {
+		const shuffled = current.slice(0, count);
 		for (let i = shuffled.length - 1; i > 0; i--) {
 			const j = Math.floor(Math.random() * (i + 1));
 			[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -280,15 +338,18 @@
 		opening = true;
 		selectedId = entity.id;
 		await tick();
+		play('bubble');
 		modalLayout.update(
 			() => {
 				flushSync(() => {
 					dialogOpen = true;
 					openIds = [...openIds, entity.id];
 				});
-				overlayEl?.querySelector<HTMLElement>('.close-overlay')?.focus({ preventScroll: true });
+				// A fresh entity has nothing to read, so focus the title input.
+				const target = openingInWrite ? '.card-title-input' : '.close-overlay';
+				overlayEl?.querySelector<HTMLElement>(target)?.focus({ preventScroll: true });
 			},
-			{ duration: motion(500) }
+			dialogMotion()
 		);
 		opening = false;
 	}
@@ -297,6 +358,7 @@
 		const id = selectedId;
 		if (!dialogOpen || !id || !modalLayout) return;
 		const source = gridCardEl(id);
+		play('whoosh');
 		modalLayout
 			.update(
 				() => {
@@ -308,12 +370,27 @@
 					// FLIP aligned: focus-induced scrolling would move the target.
 					source?.focus({ preventScroll: true });
 				},
-				{ duration: motion(500) }
+				dialogMotion()
 			)
 			.then(() => {
 				source?.focus({ preventScroll: true });
 				selectedId = null;
+				openingInWrite = false;
 			});
+	}
+
+	/** Sound prefs are global, never themed. The mute cues straddle the state
+	 * change so muting is audible and unmuting is heard once the engine is back. */
+	function toggleMute() {
+		const next = !prefs.muted;
+		if (next) play('off');
+		setPref('muted', next);
+		if (!next) play('on');
+	}
+
+	function changeVolume(value: number) {
+		setPref('volume', value);
+		play('tick', { pitch: Math.round((value - 0.5) * 24), volume: 0.35 });
 	}
 
 	const overlayStyle = (bitsStyle: unknown) => {
@@ -332,10 +409,14 @@
 	};
 </script>
 
+<svelte:window onpointermove={hoverCue.sample} onfocusin={hoverCue.focus} />
+
 <EntityControls
 	{layout}
-	{theme}
-	{dark}
+	theme={prefs.theme}
+	dark={prefs.dark}
+	volume={prefs.volume}
+	muted={prefs.muted}
 	{visibleCount}
 	entityCount={entities.length}
 	{entityClass}
@@ -343,8 +424,11 @@
 	onLayoutChange={changeLayout}
 	onAction={runAction}
 	onClassChange={changeClass}
-	onThemeChange={(next) => (theme = next)}
-	onDarkChange={(next) => (dark = next)}
+	onCreate={createEntity}
+	onThemeChange={(next) => setPref('theme', next)}
+	onDarkChange={(next) => setPref('dark', next)}
+	onVolumeChange={changeVolume}
+	onMuteToggle={toggleMute}
 />
 
 <div
@@ -427,6 +511,7 @@
 						index={visible.findIndex((entity) => entity.id === selected.id) + 1}
 						total={visibleCount}
 						overlay
+						startMode={openingInWrite ? 'edit' : 'view'}
 						onclose={closeCard}
 					/>
 				{/if}

@@ -1,0 +1,50 @@
+{
+	"lucide": {
+		"layout.grid": "layout-grid",
+		"layout.list": "list",
+		"layout.stripes": "columns-3",
+		"layout.stack": "layers",
+		"layout.chaos": "dices",
+		"layout.calendar": "calendar-days",
+		"action.add": "plus",
+		"action.remove": "minus",
+		"action.shuffle": "shuffle",
+		"action.close": "x",
+		"mode.dark": "moon",
+		"mode.light": "sun",
+		"sound.on": "volume-2",
+		"sound.off": "volume-x"
+	},
+	"ph": {
+		"layout.grid": "squares-four",
+		"layout.list": "list",
+		"layout.stripes": "columns",
+		"layout.stack": "stack",
+		"layout.chaos": "cards",
+		"layout.calendar": "calendar-blank",
+		"action.add": "plus",
+		"action.remove": "minus",
+		"action.shuffle": "shuffle",
+		"action.close": "x",
+		"mode.dark": "moon",
+		"mode.light": "sun",
+		"sound.on": "speaker-high",
+		"sound.off": "speaker-slash"
+	},
+	"material-symbols": {
+		"layout.grid": "grid-view",
+		"layout.list": "view-list",
+		"layout.stripes": "view-column",
+		"layout.stack": "layers",
+		"layout.chaos": "cards",
+		"layout.calendar": "calendar-month",
+		"action.add": "add",
+		"action.remove": "remove",
+		"action.shuffle": "shuffle",
+		"action.close": "close",
+		"mode.dark": "dark-mode",
+		"mode.light": "light-mode",
+		"sound.on": "volume-up",
+		"sound.off": "volume-off"
+	}
+}

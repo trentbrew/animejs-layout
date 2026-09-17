@@ -11,20 +11,14 @@
  * Usage: node scripts/gen-themes.mjs
  */
 
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-const THEMES = [
-	{ id: 'modern-minimal', label: 'Modern Minimal' },
-	{ id: 'vercel', label: 'Vercel' },
-	{ id: 'claude', label: 'Claude' },
-	{ id: 'catppuccin', label: 'Catppuccin' },
-	{ id: 'quantum-rose', label: 'Quantum Rose' },
-	{ id: 'cosmic-night', label: 'Cosmic Night' },
-	{ id: 'amethyst-haze', label: 'Amethyst Haze' },
-	{ id: 't3-chat', label: 'T3 Chat' }
-];
+const here = dirname(fileURLToPath(import.meta.url));
+
+/** Single source of truth — shared with the app (`src/lib/themes.ts`). */
+const THEMES = JSON.parse(await readFile(join(here, '..', 'src', 'lib', 'themes.json'), 'utf8'));
 
 const REGISTRY = 'https://tweakcn.com/r/themes';
 
@@ -128,7 +122,7 @@ const main = async () => {
 
 	const output = [header, block(':root', { ...fallback, ...pick(loaded[0].cssVars.theme ?? {}, THEME_TOKENS) }), ...sections].join('\n\n');
 
-	const out = join(dirname(fileURLToPath(import.meta.url)), '..', 'src', 'lib', 'themes.css');
+	const out = join(here, '..', 'src', 'lib', 'themes.css');
 	await writeFile(out, output + '\n', 'utf8');
 	console.log(`wrote ${out} (${THEMES.length} themes, ${output.length} bytes)`);
 };

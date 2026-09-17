@@ -43,6 +43,12 @@
 	--padding: 1rem;
 	--border-width: 1px;
 
+	/* Motion-contract fallbacks; `applyTheme()` overwrites these per theme. */
+	--dur-fast: 150ms;
+	--dur-base: 250ms;
+	--dur-slow: 450ms;
+	--ease-ui: ease-out;
+
 	/* The planet demo's 1..5 ramp, sourced from the active tweakcn theme. */
 	--color-1: var(--foreground);
 	--color-2: var(--muted);
@@ -75,6 +81,13 @@ body {
 	color: var(--foreground);
 	font-family: var(--font-sans);
 	-webkit-font-smoothing: antialiased;
+}
+
+.icon {
+	display: inline-block;
+	vertical-align: -0.125em;
+	flex-shrink: 0;
+	color: currentColor;
 }
 
 .container {
@@ -137,6 +150,9 @@ body {
 
 .close-overlay {
 	position: absolute;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	align-self: flex-end;
 	width: 3rem;
 	height: 3rem;
@@ -152,7 +168,7 @@ body {
 	line-height: 1;
 	cursor: pointer;
 	transform: rotate(-90deg) scale(0.5);
-	transition: scale 0.125s ease-out;
+	transition: scale var(--dur-fast) var(--ease-ui);
 }
 
 button.close-overlay:disabled {
@@ -204,6 +220,13 @@ button.close-overlay:active {
 }
 
 .controls button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	min-width: 2.25rem;
+	height: 2.25rem;
+	padding: 0 0.6rem;
 	background-color: var(--bg-4);
 	color: var(--secondary-foreground);
 	flex-shrink: 1;
@@ -211,7 +234,17 @@ button.close-overlay:active {
 	border-radius: calc(var(--radius) - 4px);
 	cursor: pointer;
 	font-family: inherit;
-	transition: background-color 0.125s ease-out;
+	font-size: 0.875rem;
+	line-height: 1;
+	transition: background-color var(--dur-fast) var(--ease-ui);
+}
+
+.controls .volume {
+	width: 5rem;
+	height: 2.25rem;
+	cursor: pointer;
+	accent-color: var(--primary);
+	background: transparent;
 }
 
 .controls button:hover {
@@ -240,7 +273,7 @@ button.close-overlay:active {
 	);
 	color: var(--color-1);
 	transform-style: preserve-3d;
-	transition: transform 0.1s ease-out;
+	transition: transform 0.1s var(--ease-ui);
 	text-decoration: none;
 }
 
@@ -472,7 +505,7 @@ button.close-overlay:active {
 	font-size: 0.75rem;
 	text-transform: uppercase;
 	overflow: hidden;
-	transition: background-color 0.125s ease-out;
+	transition: background-color var(--dur-fast) var(--ease-ui);
 }
 
 #root .card:hover .card-type {
@@ -489,11 +522,342 @@ button.close-overlay:active {
 	margin: 0;
 }
 
+/* In the dialog the field list renders the same value, so the one-line intro
+   would be a duplicate. */
+#overlay .card-intro-description {
+	display: none;
+}
+
 .card-more-info ul {
 	padding-top: 1rem;
 	padding-bottom: 1rem;
 	list-style: square;
 	padding-left: 1rem;
+}
+
+/* ── Field system ─────────────────────────────────────────────────────────
+   One renderer (`EntityField.svelte`) serves every widget in both read and
+   write mode; these rules only dress the variants. */
+
+.fields {
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+	width: 100%;
+	font-size: 0.8125rem;
+}
+
+.fields-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.fields-mode {
+	display: inline-flex;
+	border: 1px solid var(--border);
+	border-radius: calc(var(--radius) - 4px);
+	overflow: hidden;
+}
+
+.fields-mode-button {
+	padding: 0.25rem 0.75rem;
+	border: none;
+	background: var(--secondary);
+	color: var(--secondary-foreground);
+	font: inherit;
+	font-size: 0.75rem;
+	cursor: pointer;
+	transition: background-color var(--dur-fast) var(--ease-ui);
+}
+
+.fields-mode-button[aria-pressed='true'] {
+	background: var(--primary);
+	color: var(--primary-foreground);
+}
+
+.fields-status {
+	font-size: 0.6875rem;
+	letter-spacing: 0.04em;
+	color: var(--muted-foreground);
+	font-variant-numeric: tabular-nums;
+}
+
+.fields-status[data-status='dirty'] {
+	color: var(--card-color);
+}
+
+.fields-status[data-status='error'] {
+	color: var(--destructive);
+}
+
+.fields-props {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.375rem 0.5rem;
+	padding-bottom: 0.75rem;
+	border-bottom: 1px solid var(--color-3);
+}
+
+.fields-body {
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.field {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-width: 0;
+}
+
+.field[data-variant='pill'] {
+	gap: 0.25rem;
+}
+
+.field-label {
+	flex-shrink: 0;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+	color: var(--muted-foreground);
+}
+
+.field[data-variant='pill'] .field-label {
+	display: none;
+}
+
+.field-computed {
+	margin-left: 0.125rem;
+	color: var(--card-color);
+}
+
+.field-control {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	min-width: 0;
+	flex: 1;
+}
+
+.field-input {
+	width: 100%;
+	min-width: 0;
+	padding: 0.25rem 0.5rem;
+	border: 1px solid var(--border);
+	border-radius: calc(var(--radius) - 4px);
+	background: var(--input);
+	color: var(--foreground);
+	font: inherit;
+	font-size: 0.8125rem;
+}
+
+.field-input:focus-visible {
+	outline: 2px solid var(--ring);
+	outline-offset: 1px;
+}
+
+.field-select {
+	appearance: none;
+	padding-right: 1.25rem;
+	cursor: pointer;
+}
+
+.field-textarea {
+	resize: vertical;
+	line-height: 1.45;
+}
+
+.field[data-variant='pill'] .field-select,
+.field[data-variant='pill'] .field-input {
+	width: auto;
+	min-width: 6rem;
+}
+
+.field-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	padding: 0.125rem 0.375rem;
+	border-radius: 0.25rem;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	letter-spacing: 0.04em;
+	text-transform: uppercase;
+	background: color-mix(in oklab, var(--card-color) 22%, transparent);
+	color: var(--color-1);
+}
+
+.field-tag-remove {
+	border: none;
+	background: none;
+	padding: 0;
+	color: inherit;
+	font: inherit;
+	line-height: 1;
+	cursor: pointer;
+	opacity: 0.6;
+}
+
+.field-tag-remove:hover {
+	opacity: 1;
+}
+
+.field-tags {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 0.25rem;
+	width: 100%;
+}
+
+.field-tag-input {
+	width: 6rem;
+	flex: 0 0 auto;
+}
+
+.field-toggle {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.375rem;
+	cursor: pointer;
+}
+
+.field-readonly-text {
+	min-width: 0;
+	color: var(--color-1);
+	opacity: 0.85;
+	overflow-wrap: anywhere;
+}
+
+.field-empty {
+	color: var(--muted-foreground);
+}
+
+.field-progress {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	width: 100%;
+}
+
+.field-progress-track {
+	flex: 1;
+	height: 0.375rem;
+	border-radius: 999px;
+	background: color-mix(in oklab, var(--color-1) 15%, transparent);
+	overflow: hidden;
+}
+
+.field-progress-fill {
+	display: block;
+	height: 100%;
+	border-radius: inherit;
+	background: var(--card-color);
+	transition: width var(--dur-base) var(--ease-ui);
+}
+
+.field-progress-label {
+	font-size: 0.6875rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--muted-foreground);
+}
+
+.field-range {
+	flex: 1;
+	accent-color: var(--card-color);
+}
+
+.field-people {
+	display: flex;
+	align-items: center;
+	gap: 0.375rem;
+	width: 100%;
+	min-width: 0;
+}
+
+.field-avatar {
+	display: grid;
+	place-items: center;
+	width: 1.5rem;
+	height: 1.5rem;
+	flex-shrink: 0;
+	border-radius: 50%;
+	font-size: 0.6875rem;
+	font-weight: 600;
+	background: color-mix(in oklab, var(--card-color) 25%, transparent);
+}
+
+.fields-history {
+	border-top: 1px solid var(--color-3);
+	padding-top: 0.75rem;
+	font-size: 0.6875rem;
+	color: var(--muted-foreground);
+}
+
+.fields-history-label {
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+
+.fields-history ol {
+	margin: 0.375rem 0 0;
+	padding: 0;
+	list-style: none;
+	display: flex;
+	flex-direction: column;
+	gap: 0.125rem;
+}
+
+.fields-history li {
+	display: flex;
+	gap: 0.5rem;
+	align-items: baseline;
+}
+
+.fields-history code {
+	color: var(--card-color);
+	font-variant-numeric: tabular-nums;
+}
+
+.fields-history-time {
+	margin-left: auto;
+	opacity: 0.7;
+	font-variant-numeric: tabular-nums;
+}
+
+/* The heading doubles as the title input, so it has to keep the heading's
+   metrics while behaving like a field. */
+.card-title-input {
+	border: none;
+	background: transparent;
+	color: inherit;
+	font: inherit;
+	font-size: 1.5rem;
+	font-weight: inherit;
+	text-align: center;
+	padding: 0;
+	border-bottom: 1px dashed color-mix(in oklab, var(--color-1) 35%, transparent);
+}
+
+.card-title-input:focus-visible {
+	outline: none;
+	border-bottom-color: var(--card-color);
+}
+
+.controls .action.is-primary {
+	background-color: var(--primary);
+	color: var(--primary-foreground);
+	font-weight: 600;
+}
+
+.controls .action.is-primary:hover {
+	background-color: color-mix(in oklab, var(--primary) 85%, var(--foreground));
+	color: var(--primary-foreground);
 }
 
 #overlay .card {
